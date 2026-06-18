@@ -1,6 +1,8 @@
 {
   "ownerId": "kn73nxdg8ptbjmnetr435k65pn81yg8b",
   "slug": "video-pipeline-bundle",
-  "version": "1.0.2",
-  "publishedAt": 1772208487633
+  "version": "1.1.0",
+  "publishedAt": 1772208487633,
+  "author": "AtomCollide-智械工坊团队",
+  "changelog": "v1.1.0: 新增字幕翻译模块(上下文感知+双语字幕)、平台适配渲染(抖音/B站/YouTube)、流水线Manifest断点续跑、LLM多提供商支持"
 }

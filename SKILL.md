@@ -1,7 +1,7 @@
 ---
 name: 灵感象限-Ideasphere
-description: 灵感象限-Ideasphere：自媒体视频一站式剪辑技能包。输入本地素材，自动完成去静音剪辑→Faster Whisper语音转字幕→MiniMax LLM词级纠错→ffmpeg字幕烧录→多平台导出。全程支持分步确认，批量处理，输出抖音/视频号/YouTube-ready成品。
-version: "1.0.1"
+description: 灵感象限-Ideasphere：自媒体视频一站式剪辑技能包。输入本地素材，自动完成去静音剪辑→Faster Whisper语音转字幕→LLM纠错→字幕翻译(支持双语)→字幕烧录→平台适配渲染→多平台导出。支持断点续跑、阶段恢复，输出抖音/B站/YouTube-ready成品。
+version: "1.1.0"
 requires_toolsets:
   - terminal
   - python
@@ -14,52 +14,90 @@ triggers:
   - 批量处理视频
   - 视频去静音
   - 字幕生成
+  - 字幕翻译
+  - 双语字幕
   - 视频拼接
   - 口播剪辑
+  - 平台适配渲染
 metadata:
   hermes:
-    author: hermes-internal
+    author: AtomCollide-智械工坊团队
     created: 2026-05-04
-    updated: 2026-05-16
+    updated: 2026-06-19
     maturity: production
     category: media
     tags:
       - 视频剪辑
       - 字幕生成
+      - 字幕翻译
+      - 双语字幕
       - 批量处理
       - FFmpeg
       - Whisper
       - 灵感象限
+      - 平台适配
 scripts:
   pipeline: scripts/pipeline.py
   video_clip: scripts/video_clip.py
   video_to_text: scripts/video_to_text.py
+  translate_subtitle: scripts/translate_subtitle.py
   burn_subtitle: scripts/burn_subtitle.py
+  platform_render: scripts/platform_render.py
   ffmpeg_tools: scripts/ffmpeg_tools.py
+  manifest: scripts/manifest.py
 ---
 
 > **重要依赖**
 > - ffmpeg + ffprobe（系统级）
 > - auto-editor: `pip3 install auto-editor`
 > - faster-whisper + requests: `pip3 install faster-whisper requests`
-> - MiniMax API Key: 环境变量 `MINIMAX_API_KEY` 或 `--api-key` 参数
+> - LLM API Key: 环境变量 `MINIMAX_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` 或 `--api-key` 参数
 
-# Video Pipeline Bundle
+# Video Pipeline Bundle — 灵感象限
 
-视频一站式工作流技能包，整合剪辑、转写、烧录、拼接全流程。
+视频一站式工作流技能包，整合剪辑、转写、翻译、烧录、渲染、拼接全流程。
+
+**作者：AtomCollide-智械工坊团队**
 
 ## 文件结构
 
 ```
-video-pipeline-bundle/
+hermes-skill-ideasphere/
 ├── SKILL.md
+├── README.md
 └── scripts/
-    ├── pipeline.py      # 工作流编排
-    ├── video_clip.py    # 视频剪辑（去静音）
-    ├── video_to_text.py # 语音转字幕
-    ├── burn_subtitle.py # 烧录字幕
-    └── ffmpeg_tools.py  # FFmpeg 工具箱
+    ├── pipeline.py          # 工作流编排（含 manifest 断点续跑）
+    ├── video_clip.py        # 视频剪辑（去静音）
+    ├── video_to_text.py     # 语音转字幕
+    ├── translate_subtitle.py # 字幕翻译（上下文感知 + 双语输出）
+    ├── burn_subtitle.py     # 烧录字幕
+    ├── platform_render.py   # 平台适配渲染（抖音/B站/YouTube 等）
+    ├── ffmpeg_tools.py      # FFmpeg 工具箱
+    └── manifest.py          # 流水线状态管理
 ```
+
+## v1.1.0 更新内容
+
+🆕 **字幕翻译模块** (`translate_subtitle.py`)
+- 上下文感知翻译：翻译每句时提供前后各3句作为上下文，确保语义连贯
+- 支持双语字幕输出（原文+译文）
+- 兼容任意 OpenAI API 规范的 LLM（MiniMax / OpenAI / DeepSeek / 通义千问）
+- 翻译质量校验 + 自动重试机制
+- 长句递归拆分策略
+
+🆕 **平台适配渲染** (`platform_render.py`)
+- 一键渲染适配各平台尺寸（抖音9:16 / YouTube16:9 / 小红书3:4）
+- 竖屏模式自动优化字幕样式
+- 横屏转竖屏智能裁剪
+
+🆕 **流水线 Manifest** (`manifest.py`)
+- 记录各阶段执行状态，支持断点续跑
+- 失败阶段可单独重跑，不重复已完成的工作
+- `ideasphere_manifest.json` 结构化输出
+
+🆕 **LLM 多提供商支持**
+- 统一使用 OpenAI API 规范
+- 支持 MiniMax / OpenAI / DeepSeek / 通义千问等
 
 ## 依赖
 
@@ -67,61 +105,41 @@ video-pipeline-bundle/
 - Python 3.8+
 - auto-editor（视频剪辑）
 - faster-whisper + requests（语音转写）
-- MiniMax API Key（LLM 纠错）
+- LLM API Key（纠错 + 翻译）
 
 ## 安装与配置
 
 ### 1. 自动安装依赖
 
-首次使用时，脚本会自动检测并安装所需依赖：
-
 ```bash
-# 自动检测并安装
-python3 skills/video-pipeline-bundle/scripts/pipeline.py --install-deps
+python3 scripts/pipeline.py --install-deps
 ```
 
 **自动安装的内容：**
 - `pip3 install auto-editor --break-system-packages`
 - `pip3 install faster-whisper requests`
 
-### 2. 配置 MiniMax API Key
+### 2. 配置 LLM API Key
 
 **方式一：环境变量（推荐）**
 ```bash
-export MINIMAX_API_KEY="your-api-key-here"
+export MINIMAX_API_KEY="your-api-key"
+# 或
+export OPENAI_API_KEY="your-api-key"
+# 或
+export DEEPSEEK_API_KEY="your-api-key"
 ```
 
 **方式二：运行时传入**
 ```bash
-python3 skills/video-pipeline-bundle/scripts/pipeline.py \
-  --all \
-  --input "/path/to/videos" \
-  --api-key "your-api-key-here"
+python3 scripts/pipeline.py --all --input "/path/to/videos" --api-key "your-api-key"
 ```
 
-**获取 API Key：**
-1. 访问 [MiniMax 开放平台](https://platform.minimaxi.com/)
-2. 注册账号并创建 API Key
-3. 充值或获取免费额度
-
-### 3. 依赖检查脚本
-
-如果不确定环境是否满足要求，可以运行：
+### 3. 依赖检查
 
 ```bash
-python3 skills/video-pipeline-bundle/scripts/pipeline.py --check-deps
+python3 scripts/pipeline.py --check-deps
 ```
-
-输出示例：
-```
-✅ ffmpeg: 已安装 (6.1.1)
-❌ auto-editor: 未安装
-❌ faster-whisper: 未安装
-❌ MINIMAX_API_KEY: 未设置
-
-请运行: python3 skills/video-pipeline-bundle/scripts/pipeline.py --install-deps
-```
-如果有存在未安装的，就自动检测用户系统并帮用户安装。
 
 ## 核心功能
 
@@ -130,7 +148,7 @@ python3 skills/video-pipeline-bundle/scripts/pipeline.py --check-deps
 去除视频中的静音片段，保留有效内容。
 
 ```bash
-python3 skills/video-pipeline-bundle/scripts/video_clip.py \
+python3 scripts/video_clip.py \
   --input "/path/to/input.mp4" \
   --output "/path/to/output.mp4" \
   --threshold -40
@@ -138,10 +156,10 @@ python3 skills/video-pipeline-bundle/scripts/video_clip.py \
 
 ### 2. 语音转写 (video_to_text.py)
 
-用 Faster Whisper 识别语音，生成 SRT 字幕，然后用 MiniMax LLM 词级别纠错。
+用 Faster Whisper 识别语音，生成 SRT 字幕，然后用 LLM 词级别纠错。
 
 ```bash
-python3 skills/video-pipeline-bundle/scripts/video_to_text.py \
+python3 scripts/video_to_text.py \
   --input "/path/to/video.mp4" \
   --output "/path/to/subtitle.srt" \
   --model small \
@@ -153,82 +171,131 @@ python3 skills/video-pipeline-bundle/scripts/video_to_text.py \
 |------|------|------|
 | --model | Whisper 模型 (tiny/small/base) | small |
 | --margin | 静音片段缓冲秒数 | 0.5 |
-| --api-key | MiniMax API Key | 环境变量 MINIMAX_API_KEY |
+| --api-key | LLM API Key | 环境变量 |
+| --provider | LLM 提供商 (minimax/openai/anthropic) | minimax |
 
-**模型选择：**
-| 模型 | 内存 | 速度 |
+### 3. 字幕翻译 (translate_subtitle.py) 🆕
+
+上下文感知翻译，支持双语字幕输出。
+
+```bash
+# 翻译为英文
+python3 scripts/translate_subtitle.py \
+  --input "/path/to/subtitle.srt" \
+  --target-lang "English" \
+  --bilingual
+
+# 翻译为中文（使用 DeepSeek）
+python3 scripts/translate_subtitle.py \
+  --input "/path/to/subtitle.srt" \
+  --target-lang "中文" \
+  --provider deepseek \
+  --bilingual
+
+# 批量翻译目录下所有 SRT
+python3 scripts/translate_subtitle.py \
+  --input "/path/to/subtitles/" \
+  --target-lang "中文" \
+  --bilingual
+```
+
+**参数：**
+| 参数 | 说明 | 默认 |
 |------|------|------|
-| tiny | ~1GB | 最快 |
-| **small** | ~2GB | 较快 |
-| base | ~3GB | 中等 |
+| --target-lang | 目标语言 | 中文 |
+| --bilingual | 生成双语字幕 | 否 |
+| --provider | LLM 提供商 | minimax |
+| --context-size | 上下文句子数 | 3 |
 
-### 3. 烧录字幕 (burn_subtitle.py)
+**输出文件：**
+- `{name}_{lang}.srt` — 翻译后的字幕
+- `{name}_bilingual_{lang}.srt` — 双语字幕（原文+译文）
+
+### 4. 烧录字幕 (burn_subtitle.py)
 
 将 SRT 字幕烧录进视频。
 
 ```bash
-python3 skills/video-pipeline-bundle/scripts/burn_subtitle.py \
+python3 scripts/burn_subtitle.py \
   --input "/path/to/video.mp4" \
   --subtitle "/path/to/subtitle.srt" \
   --output "/path/to/output.mp4"
 ```
 
-### 4. FFmpeg 工具箱 (ffmpeg_tools.py)
+### 5. 平台适配渲染 (platform_render.py) 🆕
+
+为指定平台渲染适配尺寸的视频。
+
+```bash
+# 抖音/快手（9:16 竖屏）
+python3 scripts/platform_render.py \
+  --input "video.mp4" --subtitle "subtitle.srt" \
+  --output "douyin_output.mp4" --platform douyin
+
+# YouTube（16:9 横屏）
+python3 scripts/platform_render.py \
+  --input "video.mp4" --subtitle "subtitle.srt" \
+  --output "youtube_output.mp4" --platform youtube
+
+# 列出所有平台预设
+python3 scripts/platform_render.py --list-platforms
+```
+
+**支持平台：**
+| 平台 | 名称 | 尺寸 | 比例 |
+|------|------|------|------|
+| douyin | 抖音/快手 | 1080x1920 | 9:16 |
+| wechat | 微信视频号 | 1080x1920 | 9:16 |
+| xiaohongshu | 小红书 | 1080x1440 | 3:4 |
+| youtube | YouTube | 1920x1080 | 16:9 |
+| bilibili | B站 | 1920x1080 | 16:9 |
+
+### 6. FFmpeg 工具箱 (ffmpeg_tools.py)
 
 支持拼接、格式转换等操作。
 
 ```bash
 # 拼接视频
-python3 skills/video-pipeline-bundle/scripts/ffmpeg_tools.py concat \
-  --inputs "1.mp4" "2.mp4" \
-  --output "merged.mp4"
+python3 scripts/ffmpeg_tools.py concat \
+  --inputs "1.mp4" "2.mp4" --output "merged.mp4"
 
 # 格式转换
-python3 skills/video-pipeline-bundle/scripts/ffmpeg_tools.py convert \
-  --input "video.mov" \
-  --output "video.mp4"
+python3 scripts/ffmpeg_tools.py convert \
+  --input "video.mov" --output "video.mp4"
 
 # 查看视频信息
-python3 skills/video-pipeline-bundle/scripts/ffmpeg_tools.py info \
-  --input "/path/to/videos"
+python3 scripts/ffmpeg_tools.py info --input "/path/to/videos"
 ```
 
-### 5. 完整工作流 (pipeline.py)
+### 7. 完整工作流 (pipeline.py)
 
-一站式处理，支持分步执行。
+一站式处理，支持断点续跑。
 
 ```bash
 # 检查依赖
-python3 skills/video-pipeline-bundle/scripts/pipeline.py --check-deps
+python3 scripts/pipeline.py --check-deps
 
 # 安装依赖
-python3 skills/video-pipeline-bundle/scripts/pipeline.py --install-deps
+python3 scripts/pipeline.py --install-deps
 
 # 扫描目录
-python3 skills/video-pipeline-bundle/scripts/pipeline.py \
-  --list \
-  --input "/path/to/videos"
+python3 scripts/pipeline.py --list --input "/path/to/videos"
 
 # 执行单步
-python3 skills/video-pipeline-bundle/scripts/pipeline.py \
-  --step 1 \
-  --input "/path/to/videos" \
-  --output "/path/to/output"
+python3 scripts/pipeline.py --step 1 --input "/path/to/videos" --output "/path/to/output"
 
-# 执行全量
-python3 skills/video-pipeline-bundle/scripts/pipeline.py \
-  --all \
-  --input "/path/to/videos" \
-  --output "/path/to/output" \
-  --subtitle "/path/to/subtitles" \
-  --api-key "your-api-key"
+# 执行全量（含翻译）
+python3 scripts/pipeline.py --all --input "/path/to/videos" --output "/path/to/output" \
+  --target-lang "English" --bilingual --platform douyin
 
-# 带确认模式
-python3 skills/video-pipeline-bundle/scripts/pipeline.py \
-  --all \
-  --input "/path/to/videos" \
-  --output "/path/to/output" \
-  --confirm
+# 断点续跑（已完成的阶段自动跳过）
+python3 scripts/pipeline.py --all --input "/path/to/videos" --output "/path/to/output"
+
+# 查看流水线状态
+python3 scripts/manifest.py --workdir "/path/to/output" --action summary
+
+# 重置流水线状态
+python3 scripts/manifest.py --workdir "/path/to/output" --action reset
 ```
 
 ## 步骤说明
@@ -236,20 +303,25 @@ python3 skills/video-pipeline-bundle/scripts/pipeline.py \
 | 步骤 | 功能 | 输入 | 输出 |
 |------|------|------|------|
 | 1 | 剪辑（去静音） | 原始视频 | 已剪辑视频 |
-| 2 | 转写（生成字幕） | 已剪辑视频 | SRT 字幕 |
-| 3 | 烧录 | 已剪辑视频 + 字幕 | 已烧录视频 |
-| 4 | 拼接 | 多个视频 | 合并视频 |
+| 2 | 拼接 | 已剪辑视频 | 合并视频 |
+| 3 | 转写（生成字幕） | 合并视频 | SRT 字幕 |
+| 4 | 翻译（可选） | SRT 字幕 | 翻译字幕 + 双语字幕 |
+| 5 | 烧录 | 合并视频 + 字幕 | 已烧录视频 |
+| 6 | 平台渲染（可选） | 已烧录视频 | 平台适配视频 |
 
 ## 输出目录结构
 
 ```
-输入目录/
-├── 文字稿/           # 字幕文件
-├── 项目名/           # 处理后的视频
-│   ├── 1_已剪辑.mp4
-│   └── 2_已剪辑.mp4
-└── 项目名_成品/     # 最终成品
-    └── 合并视频.mp4
+输出目录/
+├── ideasphere_manifest.json   # 流水线状态（断点续跑）
+├── 1_已剪辑/                  # 步骤1产出
+├── 2_已拼接/                  # 步骤2产出
+├── 3_文字稿/                  # 步骤3产出（SRT + TXT）
+├── 4_已翻译/                  # 步骤4产出（翻译字幕 + 双语字幕）
+├── 5_已烧录/                  # 步骤5产出
+└── 6_平台导出/                # 步骤6产出
+    ├── douyin_xxx.mp4
+    └── youtube_xxx.mp4
 ```
 
 ## ⚠️ 安全注意事项
@@ -259,62 +331,40 @@ python3 skills/video-pipeline-bundle/scripts/pipeline.py \
 脚本支持发送进度通知到 Feishu，但：
 - **默认不发送消息**（`--notify false` 即可禁用）
 - 如需启用，请设置 `OPENCLAW_TARGET` 环境变量为可信目标
-- 通知内容会包含文件名，请注意信息安全
 
-```bash
-# 禁用通知（推荐）
-python3 ... --notify false
+### 2. API Key 安全
 
-# 启用通知（仅可信目标）
-export OPENCLAW_TARGET="your-safe-target"
-```
-
-### 2. 自动安装（默认仅提示）
-
-`--install-deps` 选项会检测缺失的依赖并提供安装命令，但：
-- **不会自动执行 sudo/apt-get/brew**
-- 仅显示需要手动执行的命令
-- 建议在虚拟环境或容器中安装
-
-### 3. API Key 安全
-
-- 使用环境变量 `MINIMAX_API_KEY` 而非硬编码
-- 或使用 `--api-key` 参数（注意命令历史）
+- 使用环境变量而非硬编码
 - 建议使用受限权限的 API Key
-
-### 4. 建议的测试方式
-
-```bash
-# 1. 先检查依赖
-python3 skills/video-pipeline-bundle/scripts/pipeline.py --check-deps
-
-# 2. 手动安装缺失的依赖（不要用 --install-deps 自动安装系统包）
-
-# 3. 在隔离环境测试
-python3 skills/video-pipeline-bundle/scripts/pipeline.py \
-  --list \
-  --input "/path/to/test/videos" \
-  --notify false
-```
 
 ## 常见问题
 
 **Q: 提示 "auto-editor 未安装"**
-A: 运行 `python3 skills/video-pipeline-bundle/scripts/pipeline.py --install-deps`
+A: 运行 `python3 scripts/pipeline.py --install-deps`
 
 **Q: 提示 "MINIMAX_API_KEY 未设置"**
-A: 设置环境变量 `export MINIMAX_API_KEY="your-key"`，或使用 `--api-key` 参数
+A: 设置环境变量 `export MINIMAX_API_KEY='your-key'`，或使用 `--api-key` 参数
 
 **Q: 显存不够怎么办？**
 A: 使用 `--model tiny` 参数，tiny 模型只需要 ~1GB 内存
 
 **Q: ffmpeg 未安装？**
-A: Ubuntu/Debian: `sudo apt install ffmpeg` | macOS: `brew install ffmpeg` | Windows: 下载 ffmpeg.exe
+A: Ubuntu/Debian: `sudo apt install ffmpeg` | macOS: `brew install ffmpeg`
+
+**Q: 如何断点续跑？**
+A: 直接重新执行 `--all`，已完成的阶段会自动跳过（基于 `ideasphere_manifest.json`）
+
+**Q: 如何生成双语字幕？**
+A: 翻译步骤使用 `--bilingual` 参数，会同时生成单语翻译字幕和双语字幕
+
+**Q: 竖屏视频字幕太小？**
+A: 使用 `platform_render.py` 的平台预设，竖屏模式会自动放大字幕
 
 ## When to Use
 
 - 批量处理多个口播/访谈视频，需要自动去除静音片段
 - 已有本地素材，需要快速生成带字幕的成片
+- 需要将视频翻译为其他语言并生成双语字幕
 - 需要将视频导出为抖音/视频号/YouTube 适配格式
 - 需要对字幕内容做 LLM 级别的智能纠错（过滤语气词、修正错别字）
 - 多段视频需要拼接合并为一个完整成品
@@ -327,22 +377,32 @@ A: Ubuntu/Debian: `sudo apt install ffmpeg` | macOS: `brew install ffmpeg` | Win
 - **字幕时间戳漂移**：Whisper 在长音频中可能有时间偏移，建议音频超过 30 分钟时分段处理
 - **输出路径覆盖**：默认会覆盖已有文件，先确认输出目录没有同名文件
 - **auto-editor 阈值**：`--threshold` 默认 -40dB，录音环境嘈杂时可能需要调高（如 -35）
-- **--confirm 模式**：每步执行前需要人工确认，适合精细化控制；批量处理时去掉 `--confirm`
+- **翻译质量**：建议使用 --bilingual 保留原文对照，翻译结果可在 SRT 文件中手动微调
+- **竖屏裁剪**：横屏转竖屏时会裁剪两侧内容，确保主体居中
 
 ## Verification
 
 ```bash
 # 1. 依赖检查
-python3 ~/.hermes/skills/media/video-pipeline-bundle/scripts/pipeline.py --check-deps
+python3 scripts/pipeline.py --check-deps
 
 # 2. 扫描可用素材（不执行，只列出）
-python3 ~/.hermes/skills/media/video-pipeline-bundle/scripts/pipeline.py \
-  --list --input "/path/to/test/videos"
+python3 scripts/pipeline.py --list --input "/path/to/test/videos"
 
 # 3. 执行完整流程测试（--notify false 关闭通知）
-python3 ~/.hermes/skills/media/video-pipeline-bundle/scripts/pipeline.py \
-  --all \
+python3 scripts/pipeline.py --all \
   --input "/path/to/test/videos" \
   --output "/path/to/output" \
   --notify false
+
+# 4. 检查流水线状态
+python3 scripts/manifest.py --workdir "/path/to/output"
+
+# 5. 测试字幕翻译
+python3 scripts/translate_subtitle.py \
+  --input "/path/to/test.srt" \
+  --target-lang "English" --bilingual
+
+# 6. 测试平台渲染
+python3 scripts/platform_render.py --list-platforms
 ```
