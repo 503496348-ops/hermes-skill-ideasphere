@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 from enum import Enum
@@ -211,35 +212,165 @@ def stage_platform_render(state: PipelineState, stage: Stage) -> str:
     return platform_path
 
 
-# ──── YouTube Subtitle Extraction (KrillinAI pattern) ────
+# ──── Online Video Download + Subtitle Extraction (KrillinAI pattern) ────
 
-def extract_youtube_subtitles(url: str, output_dir: str, lang: str = "zh") -> Optional[str]:
-    """Extract subtitles directly from YouTube URL.
+def download_online_video(url: str, output_dir: str, quality: str = "best",
+                          max_height: Optional[int] = None, proxy: Optional[str] = None,
+                          download_subs: bool = True, sub_langs: Optional[list] = None) -> Optional[dict]:
+    """Download video from URL (YouTube/Bilibili/TikTok etc.) with subtitles.
     
-    Inspired by KrillinAI's youtube_subtitle.go.
-    Uses yt-dlp for extraction.
+    Inspired by KrillinAI's download.go + youtube_subtitle_helper.go.
+    Uses yt-dlp for downloading with progress tracking.
+    
+    Returns:
+        dict: {"video_path": str, "subtitle_paths": [str], "platform": str}
     """
-    srt_path = os.path.join(output_dir, "youtube_subs.srt")
-    
     try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from video_download import download_video
+        result = download_video(
+            url=url,
+            output_dir=output_dir,
+            quality=quality,
+            max_height=max_height,
+            proxy=proxy,
+            download_subs=download_subs,
+            sub_langs=sub_langs,
+        )
+        return result
+    except ImportError:
+        # Fallback: basic yt-dlp download
+        os.makedirs(output_dir, exist_ok=True)
+        outtmpl = os.path.join(output_dir, "%(title)s.%(ext)s")
         cmd = [
-            "yt-dlp",
-            "--write-sub", "--write-auto-sub",
-            "--sub-lang", lang,
-            "--sub-format", "srt",
-            "--skip-download",
-            "-o", os.path.join(output_dir, "youtube_subs"),
-            url
+            "yt-dlp", "--no-playlist", "-f", "bestvideo+bestaudio/best",
+            "--merge-output-format", "mp4",
+            "--write-sub", "--write-auto-sub", "--sub-format", "srt",
+            "-o", outtmpl, url
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if result.returncode == 0:
-            # Find the generated SRT file
+            # Find downloaded files
+            video_path = None
+            subtitle_paths = []
             for f in os.listdir(output_dir):
-                if f.endswith('.srt') and 'youtube_subs' in f:
-                    return os.path.join(output_dir, f)
+                if f.endswith(".mp4"):
+                    video_path = os.path.join(output_dir, f)
+                elif f.endswith(".srt"):
+                    subtitle_paths.append(os.path.join(output_dir, f))
+            return {
+                "video_path": video_path,
+                "subtitle_paths": subtitle_paths,
+            }
         return None
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return None
+
+
+def extract_youtube_subtitles(url: str, output_dir: str, lang: str = "zh") -> Optional[str]:
+    """Extract subtitles only from URL (no video download).
+    
+    Uses yt-dlp for subtitle extraction.
+    """
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from video_download import download_subtitles_only
+        subs = download_subtitles_only(url, output_dir, sub_langs=[lang])
+        return subs[0] if subs else None
+    except ImportError:
+        srt_path = os.path.join(output_dir, "youtube_subs.srt")
+        try:
+            cmd = [
+                "yt-dlp", "--write-sub", "--write-auto-sub",
+                "--sub-lang", lang, "--sub-format", "srt",
+                "--skip-download",
+                "-o", os.path.join(output_dir, "youtube_subs"),
+                url
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0:
+                for f in os.listdir(output_dir):
+                    if f.endswith('.srt') and 'youtube_subs' in f:
+                        return os.path.join(output_dir, f)
+            return None
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return None
+
+
+# ──── TTS Dubbing Stage (KrillinAI pattern) ────
+
+def stage_tts_dubbing(state: PipelineState, stage: Stage) -> str:
+    """Stage: TTS dubbing - synthesize translated subtitles to speech.
+    
+    Inspired by KrillinAI's Edge TTS + Aliyun TTS pipeline.
+    Generates dubbed audio from translated SRT and optionally
+    creates a dubbed video with replaced audio track.
+    """
+    translated_srt = os.path.join(state.output_dir, "translated.srt")
+    tts_output_dir = os.path.join(state.output_dir, "tts_dubbed")
+    dubbed_audio = os.path.join(tts_output_dir, "tts_full_audio.wav")
+    dubbed_video = os.path.join(tts_output_dir, "dubbed_video.mp4")
+
+    if os.path.exists(dubbed_video):
+        stage.status = StageStatus.COMPLETED
+        stage.progress = 100
+        stage.output_path = dubbed_video
+        return dubbed_video
+
+    # Check if translated SRT exists
+    if not os.path.exists(translated_srt):
+        # Fall back to transcript.srt
+        translated_srt = os.path.join(state.output_dir, "transcript.srt")
+        if not os.path.exists(translated_srt):
+            stage.status = StageStatus.SKIPPED
+            stage.error = "No SRT file found for TTS dubbing"
+            stage.progress = 100
+            return ""
+
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from tts_dubbing import synthesize_subtitles, generate_dubbed_video, LANG_CODE_MAP
+
+        lang_code = LANG_CODE_MAP.get(state.target_language, state.target_language[:2])
+
+        stage.progress = 10
+
+        # TTS synthesis
+        result = synthesize_subtitles(
+            srt_path=translated_srt,
+            output_dir=tts_output_dir,
+            provider="edge",
+            lang=lang_code,
+            speed_match=True,
+        )
+        if not result or not result.get("final_audio"):
+            stage.status = StageStatus.FAILED
+            stage.error = "TTS synthesis produced no output"
+            return ""
+        stage.progress = 70
+        stage.output_path = result["final_audio"]
+        # Generate dubbed video if source video exists
+        if os.path.exists(state.input_path):
+            video_result = generate_dubbed_video(
+                video_path=state.input_path,
+                tts_audio_path=result["final_audio"],
+                output_path=dubbed_video,
+                keep_original=False,
+            )
+            if video_result:
+                stage.output_path = dubbed_video
+        stage.progress = 100
+        stage.status = StageStatus.COMPLETED
+        return stage.output_path
+
+    except ImportError as e:
+        stage.status = StageStatus.FAILED
+        stage.error = f"TTS module not available: {e}. Install: pip3 install edge-tts"
+        raise
+    except Exception as e:
+        stage.status = StageStatus.FAILED
+        stage.error = str(e)
+        raise
 
 
 # ──── Pipeline Orchestrator ────
@@ -249,6 +380,7 @@ STAGE_FUNCS = [
     ("语音转文字", stage_transcribe),
     ("字幕翻译", stage_translate),
     ("字幕烧录", stage_burn_subtitles),
+    ("TTS配音", stage_tts_dubbing),
     ("平台适配", stage_platform_render),
 ]
 

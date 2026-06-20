@@ -1,7 +1,7 @@
 ---
 name: 灵感象限-Ideasphere
-description: 灵感象限-Ideasphere：自媒体视频一站式剪辑技能包。输入本地素材，自动完成去静音剪辑→Faster Whisper语音转字幕→LLM纠错→字幕翻译(支持双语)→字幕烧录→平台适配渲染→多平台导出。支持断点续跑、阶段恢复，输出抖音/B站/YouTube-ready成品。
-version: "1.1.0"
+description: 灵感象限-Ideasphere：自媒体视频一站式剪辑技能包。输入本地素材或在线URL，自动完成在线视频下载→去静音剪辑→Faster Whisper语音转字幕→LLM纠错→字幕翻译(支持双语)→字幕烧录→TTS语音配音→平台适配渲染→多平台导出。支持断点续跑、阶段恢复，输出抖音/B站/YouTube-ready成品。
+version: "1.2.0"
 requires_toolsets:
   - terminal
   - python
@@ -19,6 +19,12 @@ triggers:
   - 视频拼接
   - 口播剪辑
   - 平台适配渲染
+  - TTS配音
+  - 语音合成
+  - 视频下载
+  - 在线视频
+  - YouTube下载
+  - B站下载
 metadata:
   hermes:
     author: AtomCollide-智械工坊团队
@@ -36,6 +42,10 @@ metadata:
       - Whisper
       - 灵感象限
       - 平台适配
+      - TTS配音
+      - Edge TTS
+      - 视频下载
+      - yt-dlp
 scripts:
   pipeline: scripts/pipeline.py
   video_clip: scripts/video_clip.py
@@ -45,6 +55,8 @@ scripts:
   platform_render: scripts/platform_render.py
   ffmpeg_tools: scripts/ffmpeg_tools.py
   manifest: scripts/manifest.py
+  video_download: scripts/video_download.py
+  tts_dubbing: scripts/tts_dubbing.py
 ---
 
 > **重要依赖**
@@ -75,6 +87,20 @@ hermes-skill-ideasphere/
     ├── ffmpeg_tools.py      # FFmpeg 工具箱
     └── manifest.py          # 流水线状态管理
 ```
+
+## v1.2.0 更新内容
+
+🆕 **在线视频下载** (`video_download.py`)
+- 从 YouTube / B站 / TikTok / 抖音 等 1000+ 平台下载视频
+- 自动下载字幕（自动生成 + 手动上传）
+- 支持画质选择、代理、批量下载
+- 平台自动识别 + 视频元信息获取
+
+🆕 **TTS 语音配音** (`tts_dubbing.py`)
+- Edge TTS 免费语音合成（300+ 音色，中/英/日/韩/法/德/西等）
+- 语速自动对齐（TTS 时长匹配字幕时间轴）
+- 配音视频生成（替换或混合原始音频）
+- 支持双语字幕自动提取译文行
 
 ## v1.1.0 更新内容
 
