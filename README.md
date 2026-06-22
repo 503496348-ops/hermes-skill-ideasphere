@@ -183,7 +183,6 @@ hermes-skill-ideasphere/
 ## 技术参考
 
 本项目参考了以下优秀开源项目的理念：
-- [KrillinAI](https://github.com/krillinai/KrillinAI) — 上下文感知翻译策略、平台适配渲染、流水线状态管理、TTS 配音、在线视频下载
 
 ---
 
