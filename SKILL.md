@@ -1,7 +1,7 @@
 ---
 name: 灵感象限-Ideasphere
 description: "自媒体视频创作引擎。去静音→Whisper字幕→翻译→烧录→平台适配一站式处理。当需要处理视频、添加字幕、翻译视频内容、生成短视频时使用。"
-version: "1.3.0"
+version: 1.4.0
 requires_toolsets:
   - terminal
   - python
