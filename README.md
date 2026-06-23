@@ -242,3 +242,52 @@ hermes-skill-ideasphere/
 
 *AtomCollide-智械工坊团队出品*
 
+
+## 🎬 视频处理增强 (NEW)
+
+融合自 huggingface/diffusers 的视频处理能力。
+
+**处理能力**:
+- 视频质量优化
+- 视频格式转换
+- 视频帧提取
+- 视频合成
+
+```python
+from modules.video_processor import VideoProcessor, VideoQuality
+
+processor = VideoProcessor()
+
+# 获取视频信息
+info = processor.get_video_info("/path/to/video.mp4")
+print(f"分辨率: {info.width}x{info.height}")
+print(f"时长: {info.duration}s")
+
+# 优化视频
+result = processor.optimize_video(
+    "/path/to/video.mp4",
+    quality=VideoQuality.HIGH,
+    target_format=VideoFormat.MP4,
+)
+
+# 提取视频帧
+frames = processor.extract_frames(
+    "/path/to/video.mp4",
+    "/path/to/frames",
+    frame_interval=1.0,
+    max_frames=100,
+)
+
+# 从帧创建视频
+result = processor.create_video_from_frames(
+    frames,
+    "/path/to/output.mp4",
+    fps=30.0,
+)
+```
+
+**质量预设**:
+- LOW: 480x360, 500kbps
+- MEDIUM: 720x480, 1Mbps
+- HIGH: 1280x720, 2Mbps
+- ULTRA: 1920x1080, 4Mbps
